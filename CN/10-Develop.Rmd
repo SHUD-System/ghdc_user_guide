@@ -1,0 +1,6 @@
+
+# 开发指南 {#dev}
+
+The source code of SHUD and SHUD-tool are avaliable via Github: https://github.com/SHUD-System/SHUD and https://github.com/SHUD-System/rSHUD.
+
+

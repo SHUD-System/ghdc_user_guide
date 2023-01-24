@@ -1,0 +1,127 @@
+% Options for packages loaded elsewhere
+\PassOptionsToPackage{unicode}{hyperref}
+\PassOptionsToPackage{hyphens}{url}
+%
+\documentclass[
+]{gitbook}
+\usepackage{amsmath,amssymb}
+\usepackage{lmodern}
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+  \usepackage{textcomp} % provide euro and other symbols
+\else % if luatex or xetex
+  \usepackage{unicode-math}
+  \defaultfontfeatures{Scale=MatchLowercase}
+  \defaultfontfeatures[\rmfamily]{Ligatures=TeX,Scale=1}
+\fi
+% Use upquote if available, for straight quotes in verbatim environments
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+\IfFileExists{microtype.sty}{% use microtype if available
+  \usepackage[]{microtype}
+  \UseMicrotypeSet[protrusion]{basicmath} % disable protrusion for tt fonts
+}{}
+\makeatletter
+\@ifundefined{KOMAClassName}{% if non-KOMA class
+  \IfFileExists{parskip.sty}{%
+    \usepackage{parskip}
+  }{% else
+    \setlength{\parindent}{0pt}
+    \setlength{\parskip}{6pt plus 2pt minus 1pt}}
+}{% if KOMA class
+  \KOMAoptions{parskip=half}}
+\makeatother
+\usepackage{xcolor}
+\usepackage{longtable,booktabs,array}
+\usepackage{calc} % for calculating minipage widths
+% Correct order of tables after \paragraph or \subparagraph
+\usepackage{etoolbox}
+\makeatletter
+\patchcmd\longtable{\par}{\if@noskipsec\mbox{}\fi\par}{}{}
+\makeatother
+% Allow footnotes in longtable head/foot
+\IfFileExists{footnotehyper.sty}{\usepackage{footnotehyper}}{\usepackage{footnote}}
+\makesavenoteenv{longtable}
+\setlength{\emergencystretch}{3em} % prevent overfull lines
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\setcounter{secnumdepth}{5}
+\usepackage{booktabs}
+
+\usepackage[utf8]{inputenc}
+\usepackage[vietnamese]{babel}
+\ifLuaTeX
+  \usepackage{selnolig}  % disable illegal ligatures
+\fi
+\usepackage[]{natbib}
+\bibliographystyle{apalike}
+\IfFileExists{bookmark.sty}{\usepackage{bookmark}}{\usepackage{hyperref}}
+\IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
+\urlstyle{same} % disable monospaced font for URLs
+\hypersetup{
+  pdftitle={Global Hydrological Data Cloud},
+  pdfauthor={Lele Shu (shulele@lzb.ac.cn)},
+  hidelinks,
+  pdfcreator={LaTeX via pandoc}}
+
+\title{Global Hydrological Data Cloud}
+\usepackage{etoolbox}
+\makeatletter
+\providecommand{\subtitle}[1]{% add subtitle to \maketitle
+  \apptocmd{\@title}{\par {\large #1 \par}}{}{}
+}
+\makeatother
+\subtitle{Methodology, Application and Development}
+\author{Lele Shu (\href{mailto:shulele@lzb.ac.cn}{\nolinkurl{shulele@lzb.ac.cn}})}
+\date{2023-01-24}
+
+\begin{document}
+\maketitle
+
+{
+\setcounter{tocdepth}{3}
+\tableofcontents
+}
+\hypertarget{index}{%
+\section*{About}\label{index}}
+\addcontentsline{toc}{section}{About}
+
+\hypertarget{overview}{%
+\section{Overview}\label{overview}}
+
+\hypertarget{method}{%
+\section{Methodology}\label{method}}
+
+\hypertarget{method-data}{%
+\subsection{Data Repository}\label{method-data}}
+
+\hypertarget{struct}{%
+\section{Strucutre}\label{struct}}
+
+\hypertarget{model}{%
+\section{Model Respository}\label{model}}
+
+\hypertarget{model-shud}{%
+\subsection{SHUD}\label{model-shud}}
+
+\hypertarget{model-topmodel}{%
+\subsection{TopModel}\label{model-topmodel}}
+
+\hypertarget{practice}{%
+\section{Practice}\label{practice}}
+
+\hypertarget{app}{%
+\section{Applications}\label{app}}
+
+\hypertarget{faq}{%
+\section{FAQ}\label{faq}}
+
+\hypertarget{dev}{%
+\section{Development}\label{dev}}
+
+The source code of SHUD and SHUD-tool are avaliable via Github: \url{https://github.com/SHUD-System/SHUD} and \url{https://github.com/SHUD-System/rSHUD}.
+
+  \bibliography{book.bib}
+
+\end{document}

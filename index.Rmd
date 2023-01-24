@@ -1,0 +1,19 @@
+--- 
+title: "The Global Hydrological Data Cloud"
+subtitle: 'Idea, Practice, and Application'
+author: "Lele Shu (shulele@lzb.ac.cn)"
+date: "`r Sys.Date()`"
+documentclass: scrbook
+output:
+  bookdown::pdf_book:
+    template: null
+    toc: true
+    toc_depth: 3
+    includes:
+      in_header: preamble.tex
+description: GHDC User Guide
+link-citations: yes
+bibliography: book.bib
+site: bookdown::bookdown_site
+biblio-style: apalike
+---

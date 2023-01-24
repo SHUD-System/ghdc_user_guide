@@ -1,0 +1,24 @@
+--- 
+title: "全球水文模拟云平台"
+subtitle: '方法、应用与开发'
+author: "Lele Shu (shulele@lzb.ac.cn)"
+date: "`r Sys.Date()`"
+documentclass: gitbook
+output:
+  bookdown::pdf_book:
+    template: null
+    toc: true
+    toc_depth: 3
+    includes:
+      in_header: preamble.tex
+description: GHDC User Guide
+link-citations: yes
+bibliography: book.bib
+site: bookdown::bookdown_site
+biblio-style: apalike
+---
+
+# 前言 {-#index}
+
+
+

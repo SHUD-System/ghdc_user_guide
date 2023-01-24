@@ -1,0 +1,21 @@
+book_filename: "GHDC_User_Guide_CN"
+delete_merged_file: true
+language:
+  ui:
+    chapter_name: "Chapter "
+output_dir: "static/ghdc_cn"
+rmd_files: [
+"CN/index.Rmd",
+"CN/01-overview.Rmd",
+"CN/02-Methodology.Rmd",
+"CN/02x-Data.Rmd",
+"CN/03-Stucture.Rmd",
+"CN/04-Models.Rmd",
+"CN/04.1-SHUD.Rmd",
+"CN/04.2-Topmodel.Rmd",
+"CN/05-Practice.Rmd",
+"CN/06-Application.Rmd",
+"CN/07-FAQ.Rmd",
+"CN/10-Development.Rmd"
+]
+

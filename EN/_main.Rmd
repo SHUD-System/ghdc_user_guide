@@ -1,0 +1,1156 @@
+--- 
+title: "SHUD水文模型"
+subtitle: '理论、方法和案例'
+author: "Lele Shu (shulele@lzb.ac.cn)"
+date: "`r Sys.Date()`"
+documentclass: gitbook
+output:
+  bookdown::pdf_book:
+    template: null
+    toc: true
+    toc_depth: 3
+    includes:
+      in_header: preamble.tex
+description: SHUD Book
+link-citations: yes
+bibliography: book.bib
+site: bookdown::bookdown_site
+biblio-style: apalike
+---
+
+# 前言 {-#index}
+
+这是一本有关SHUD模型的说明书，包含和模型的基本理论、构建、应用案例和程序设计。本书不仅仅向模型用户介绍SHUD模型本身，更想为水文和地球工作中展示以水为媒的自然过程。
+
+---
+
+> “云气西行，云云然冬夏不辍；水泉东流，日夜不休；上不竭，下不满；小为大，重为轻；圜道也。”
+>
+> ——**吕不韦 《吕氏春秋》, 公元前239年(?)**
+
+
+
+> "*上善若水*，*水善利万物*而不争"
+>
+> ——**老子《道德经》，公元前四世纪**
+
+
+
+> 科学技术是人工的演化。理论物理学家的理论验证需要等待宇宙现象的发生。科学家穷其一生也无法验证某些理论——因为自然现象的发生概率非常低。所以，人工实验就可以大幅度提高这种现象的发生概率。
+>
+> ——**陈平，2019**
+
+
+
+
+<!--chapter:end:index.Rmd-->
+
+
+# 绪论 {#overview}
+本书是SHUD模拟系统的用户手册，详细解释SHUD模型的发展、理论、技术细节、应用案例。
+
+水文非结构域模拟器(Simulator for Hydrologic Unstructured Domains, SHUD - 音“书得”) 是一个多过程、多尺度、数值方法、地表-地下全耦合、分布式水文模型[@SHU2020_GMD]。模型使用了有限体积法(Finite volume method, FVM)求解水文常微分方程。
+
+**rSHUD** 是一款以R库开发的开源GIS和水文分析的工具集，用于支持SHUD和其他类似水文模拟。依托强大的R库，rSHUD的功能可分为：空间数据处理与分析，全球开放地理数据获取，SHUD数据前处理，SHUD数据后处理，水文数据分析，二维/三维数据可视化等。
+
+SHUD和rSHUD共同组成了SHUD模拟系统。SHUD模型系统的网站为[https://www.shud.xyz](https://www.shud.xyz)。用户可通过SHUD网站关注SHUD模型的发展、更新、应用和近期新闻，也可以通过网站获取源代码。
+
+## 站在巨人的肩上
+
+首先，SHUD模型基于Christopher Duffy教授在1996年提出的“两态集成平衡”(two-state integral-balance)模型概念框架[@Duffy1996a]，以及PIHM(Penn State Integrated Hydrologic Model)模型[@Qu2004, @Bhatt2012]的设计和应用经验。“两态集成平衡”理论将土壤水层分为未饱和和饱和层，并使用局部平衡公式计算水流。
+
+SHUD和PIHM都是多尺度、多过程、数值方法、地表-地下全耦合、分布式水文模型。
+继承和PIHM中“两态集成平衡”概念模型思想，并吸收PIHM应用中的经验，舒乐乐(2020)全新开发了SHUD模型。SHUD的源代码全部为新代码，防止代码继承而引入旧漏洞，并且在模型中的流域拓扑结构、数据结构、算法、公式应用、迭代过程、输入输出等方面有较大改进（文后会详细列举）。因此，SHUD由PIHM发展而来，但与PIHM已经在概念、结构、计算和格式上完全不兼容，应作为另一个独立模型看待。
+
+### PIHM模型简史
+
+Duffy于1996年构建了计算土壤水和地下水动态的“二态集成平衡”模型[@Duffy1996a]；该模型中，垂直方向分为饱和与非饱和层，局地水量平衡公式集成计算水的交换。“二态集成平衡”模型在简化水文动态的同时，保留了自然中时空尺度对产流的响应。 之后Brandes 和Duffy 等 [@Brandes1998] 继承了“二态集成平衡”模型并使用FEMWATER实现了数值方法计算山坡-河流尺度上水双向交互。 2004年，曲轶众[@Qu2004]在算法中加入了蒸散发过程和河道计算，并发布了Penn State Integrated Hydrologic Model (PIHM)——PIHM的1.0版本，是PIHM发展中最重要的里程碑，从此PIHM成为流域模拟的通用研究工具应用在不同尺度的流域中。
+
+此后， Kumar， Bhartt和Duffy [@Kumar2009; @Kumar2009a]) 相继开发了PIHM v2.0和PIHMgis。 PIHM v2.0增强了模型中陆面过程和土地利用影响水文过程的计算过程。Gopal Bhartt 开发了生成PIHM输入、读取输出和分析结果的软件PIHMgis。PIHMgis分别出现了PIHMgis v2.3和v3.0两个常用版本，PIHMgis v2.3使用了QGIS内核，因此在部分平台上更新困难。 PIHMgis v3.0的支持性更好，可支持Mac或Windows操作系统。[@Leonard2013] 开发了HydroTerre平台，为PIHM和其他水文模型提供基础的空间和时间数据。 PIHMgis和HydroTerre的出现极大地推动了PIHM模型在全美和全球的应用。
+
+受益于PIHM模型的诸多优势，PIHM家族出现了若干耦合模型。 例如，Flux-PIHM将NOAH陆面过程模型与PIHM模型耦合，更精确地计算陆面与大气的能量交换、 蒸散发和积雪 [@Shi2015; @Shi2014]。张宇等[@Zhang2016] 开发了LE-PIHM, 模型万年尺度由水文过程造就的地形地貌变化。 RT-PIHM 和 RT-Flux-PIHM[@Bao2016; @Bao2017]实现了化学反应与PIHM水文过程的耦合。由石宇宁领导的研究正试图将各种PIHM相关模型作为模块统一建立多模块PIHM系统（Multi-Module PIHM， MM-PIHM， https://github.com/PSUmodeling/MM-PIHM）。 除此之外，仍有多个与PIHM耦合的研究正在进行，如与湖泊、农业、经济的耦合研究。
+
+在PIHM模型快速发展的同时，Kumar[@Kumar2009]，在PIHM v2.0基础上设计了 Finite volume-based Integrated Hydrologic Modeling (FIHM)模型，使用二阶精度和三维流动模拟水文过程。
+
+下图展示了PIHM模型的发展和分支：
+
+![Figure_tree](Fig/Figure_tree.png)
+Figure 1: PIHM和SHUD模型的发展和分支。 PIHMgis和rSHUD分别是支持PIHM和SHUD的数据前后处理工具。 PIHMgis使用C++写成，rSHUD使用R.
+
+### 重要时间线
+- 2005 PIHM v1.0
+
+曲轶众 [@Qu2007; @Qu2004]在宾州州立大学博士期间，于其博士论文中基于“两态集成平衡”理论，开发并验证了PIHM模型。
+此版本作为PIHM v1.0出现，成为PIHM模型的核心。
+
+- 2009 PIHMgis
+
+Gopal Bhartt博士 [@Bhatt2012] 使用C++和Qt库建立了PIHMgis工具。PIHMgis在Qgis平台上实现了空间数据前处理、模型运行、结果数据分析的功能，有效地降低了初学者的使用门槛，极大地推动了模型的应用。
+
+- 2015 MM-PIHM
+
+Yuning Shi博士领导和开发了MM-PIHM (Multi-Module PIHM)模型平台——集成并融合了PIHM家族的若干耦合模块。
+诸如RT-PIHM, LE-PIHM, flux-PIHM, BGC-PIHM等等。 得益于科学家们的周密合作，MM-PIHM的多学科耦合实践很好地证明和实现了PIHM最初作为**科学社区模型**的理念。
+
+- 2020 SHUD
+
+舒乐乐博士继承了PIHM的理念和经验，开发了SHUD模型[@SHU2020_GMD]，并开发了支持SHUD模型数据前后处理、空间数据分析、模型自动校准、结果可视化的全套工具集。SHUD建模系统支持可重复、高效、全自动部署于全球大部分流域。
+
+### SHUD与PIHM的区别
+
+SHUD模型是PIHM的一个继承者，继承了1996年由Duffy提出的二相耦合概念模型，并且继承了部分PIHM 1.0和2.0当中的成熟经验。之后作者修改了模型中部分过程、计算和实现语言，SHUD模型已经与PIHM模型不再兼容，因此使用新名称对模型进行命名。
+
+**SHUD与PIHM的区别：**
+
+1. SHUD使用C++面向对象编程，将计算封装起来，避免内存泄露等PIHM常见问题。
+2. SHUD使用了不同的坡面与河道的交互。PIHM中河道与两个三角形坡面相邻，带来了四个问题：1） 河道的长度极大的影响和模型的计算单元数量，用户不得不在简单河道和计算单元数量之间做权衡。2） 平原地区的河道绵延曲折，导致大量微小三角形单元和非结构三角形，使得模型计算容易突破库容常数而使得模型变慢。3）容易出现局部积水点（sink），个别积水点就可以极大地拖慢整个流域的求解速度。 4）为解决以上问题，模型用户需要反复手动对河流形状进行修改，降低了模型的可重复性和效率。SHUD的河道覆盖在三角形单元之上，坡面和河道水量交换给予河道水位和地下水、地表水的坡度计算，整体计算效率显著提升。
+3. SHUD模型中计算入渗、地下水补给和河流交互的公式与PIHM不同。公式的采用基于经验和模型设计时的需求。未来将会就此进行模型对比，展示两个模型的差异。
+4. SHUD模型确保了计算中的水量平衡。
+
+在技术层面SHUD模型：
+
+- 支持CVODE 5.0及以上版本
+- 支持OpenMP并行计算
+- 采用和与PIHM不同的数据结构和算法
+- 支持可读性强地输入和输出文件
+- 统一的时间序列数据操作
+- 指定步长输出模型状态，作为后续模型运行的初始条件。
+- 自动检查模型的输入数据和参数的有效性
+- 加入模型调试选项，监控每一步长内的非法值和内存操作。
+
+## SHUD模型的特点
+
+- SHUD模型是一个物理性分布式水文模型，精确描述流域水文物理过程。物理性模型可用于无观测流域的模拟研究。
+- SHUD表达了流域中的空间异质性。水文空间异质性的表达有利于耦合模型研究，例如详细描述了水从山坡回流的路径，有利于生物化学、污染物运动、地貌变迁、湖泊生态等等方面的耦合研究。
+- SHUD是全耦合模型，在每一时间不步长所有水文状态量都要满足基本求解器的收敛性要求，保证了水文便利在空间上的连续性、一致性和收敛性。
+- SHUD模型使用CVODE 5.0+(Hindmarsh et al., 2005) 作为常微分方程求解器。 CVODE由劳伦斯利弗莫尔国家实验室开发和维护。
+- SHUD可使用灵活的时间和空间步长，适应多种尺度的模拟需求。
+- SHUD支持高空间时间分辨率的洪水模拟，也支持长时间序列的气候和土地利用变化研究。
+- SHUD是开源模型，任何人（非商业用途）都可使用、修改此模型。
+
+## 参考文献
+
+当利用SHUD模型从事科研工作时，请依次合理引用以下三篇文章：
+
+- L. Shu, P. A. Ullrich, C. J. Duffy, Simulator for Hydrologic Unstructured Domains (SHUD v1.0): numerical modeling of watershed hydrology with the finite volume method. Geosci. Model Dev. 13, 2743–2762 (2020).
+
+- Y. Qu, C. J. Duffy, A semidiscrete finite volume formulation for multiprocess watershed simulation. Water Resour. Res. 43, 1–18 (2007).
+
+- C. J. Duffy, A Two-State Integral-Balance Model for Soil Moisture and Groundwater Dynamics in Complex Terrain. Water Resour. Res. 32, 2421–2434 (1996).
+
+
+以下为时间排序的SHUD相关研究文章：
+
+- [@Qu2004]
+- [@Qu2007]
+- [@Li2008]
+- [@Kumar2004a]
+- [@Kumar2009d]
+- [@Yu2015]
+- [@Yu2014]
+- [@Li2011]
+- [@Shi2015]
+- [@Shi2015a]
+- [@Bhatt2014]
+- [@SHU2020_GMD]
+
+<!--chapter:end:01-overview.Rmd-->
+
+#  安装 SHUD and rSHUD {#install}
+
+本章介绍SHUD模型和rSHUD的安装过程，以及必要的开发库的安装。
+
+## SUNDIALS/CVODE
+SHUD模型的求解需要SUNDIAL中CVODE库的支持。
+SUNDIALS（SUite of Nonlinear and Differential/ALgebraic equation Solvers）由六个求解器组成；其中的 [**CVODE**](https://computation.llnl.gov/projects/sundials/cvode) 是一个用于求解刚性和非刚性常微分方程系统（初始值问题）的数值求解器，数学表达为： $y' = f(t,y)$. CVODE支持可变阶精度、可变步长数值方法。CVODE字母组合含义为“C版本的可变系数常微分方程求解器(Vriable-Coefficient Ordinary Differential Equation Solver)" 。使用SHUD模型只需要CVODE支持，因此无需安装SUNDIALS所有求解器，只需要安装CVODE即可。
+
+因为SUNDIALS/CVODE持续更新中，代码和函数定义等等变化较大，因此SHUD模型通常仅支持CVODE较新版本，并非所有版本都可支持。
+
+SUNDIALS/CVODE的安装方法有两种：（1）自行下载安装包； （2）使用SHUD源代码的安装脚本。
+
+### (1) 使用脚本安装CVODE
+
+源代码文件夹中的`configure.sh`文件是自动安装CVODE的脚本——可以自动从github上下载CVODE最新源代码并通过cmake编译并安装在`用户目录`下。
+
+
+### (2) 自行下载并安装CVODE
+
+SUNDIALS/CVODE 代码的下载地址为：[https://computation.llnl.gov/projects/sundials/sundials-software](https://computation.llnl.gov/projects/sundials/sundials-software)。 
+
+
+
+CVODE 5.x安装步骤：
+
+
+1.  进入命令行界面，并解压下载好的cvode压缩包。
+1. 在CVODE的根目录下新建文件夹 *builddir*， 并进入该文件夹。
+```
+mkdir builddir
+cd builddir/
+```
+1. 测试 ccmake. 如果没有 ``cmake``请安装。
+```
+ccmake 
+```
+
+1.  运行ccmake配置安装环境。
+```
+ccmake ../sundials/cvode-5.0.0
+```
+![Screenshot of Step 1 in ccmake](Fig/ccmake/1.png)
+
+首先出现的是空白配置页面。按c开始配置。
+
+![Screen short of Step 2 in ccmake](Fig/ccmake/2.png)
+
+上图为默认的配置信息图片上的四处配置信息需要注意，值需要改为下面的值。OPENMP值需要您的系统支持OpenMP，因此在确认您的系统支持OpenMP的情况下打开。
+
+```
+BUILD_CVODE = ON
+CMAKE_INSTALL_PREFIX = ~/sundials
+EXAMPLES_INSTALL_PATH = ~/sundials/examples
+```
+以上值修改完成后，按c确认配置。
+
+
+
+![Screenshot of Step 3 in ccmake](Fig/ccmake/3.png)
+
+ccmake开始自动配置安装参数。当配置完成后，按g生成配置文件并退出。
+
+1. 然后使用make编译并安装：
+```
+make
+make install 
+```
+
+## 编译SHUD
+
+编译信息保存在文件*Makefile*，其中关键的编译参数:
+
+1. *SUNDIALS_DIR*的保存路径（**非常关键**）. 默认值为 *~/sundials*，如果您已经安装到此路径，即可保持默认值。
+1.  OpenMP的路径。当您的系统支持OpenMP时，可根据实际安装路径配置。
+1. SRC_DIR路径。默认值为 `SRC_DIR = .`，即当前源码所在路径。
+1. BUILT_DIR路径，默认值为`BUILT_DIR = .` ，即当前源码所在路径。
+
+配置好*Makefile*文件即可编译，使用以下命令进行编译：
+```
+make clean
+make shud
+```
+
+更多可选的编译参数：
+
+- `make all`        - 清理旧的编译文件，并编译SHUD和SHUD_omp文件。
+- `make help`       - 展示编译的帮助信息。
+- `make shud`       - 编译shud模型的可执行文件。
+- `make shud_omp`   - 编译OpenMP支持的并行版本，编译后的可执行文件名为shud_omp。
+
+
+### OpenMP（可选）
+当需要并行计算时，需要安装OpenMP。以下为Mac OS上安装的参数：
+```
+brew install llvm clang
+brew install libomp
+compile flags for OpenMP: 
+  -Xpreprocessor -fopenmp -lomp
+Library/Include paths:
+  -L/usr/local/opt/libomp/lib 
+  -I/usr/local/opt/libomp/include
+```
+### 运行 SHUD 可执行文件
+运行SHUD模型，请在命令行内执行一下命令：
+```
+./shud <projectname>
+```
+
+![Default screen print of shud and command tips](Fig/CLI.png)
+命令的参数模式：
+
+```
+./shud [-0][-p projectfile] [-o output] [-n Num_Threads] <project_name>
+```
+- `-0` 空计算。读取输入文件并写出结果文件，但是内部没有计算。仅仅用于验证输入文件格式的可靠性和可用性。
+
+- `<project name>` 项目名称。所有的项目文件必须以此开头。
+
+- `[-p projectfile]` 指定的项目配置文件，文件中包含了所有输入文件的地址。
+
+- `[-o output_folder]` 制定的结果文件输出地址。默认的输出地址为``output/projname.out``。
+
+- `[-n Num_Threads]` 并行计算的线程数量。此参数仅在并行计算打开时可用。
+  
+
+
+当`shud` 程序正常运行时，屏幕输出应该如下图所示：
+![Screen print of SHUD running.](Fig/CLI_vs.png)
+
+## rSHUD
+rSHUD是一个标准R包，但尚未向CRAN提交，因此需要通过github以源码方式安装。在R环境中执行以下命令即可自动安装rSHUD。
+
+如果您的电脑上尚未在R环境中安装`devtools`，请先安装。
+
+
+```
+install.packages('devtools')
+```
+
+然后通过`devtools`从github上安装rSHUD。
+```
+devtools::install_github('SHUD-System/rSHUD')
+```
+
+
+rSHUD依赖的R工具包包括：
+
+- Rcpp
+- reshape2
+- ggplot2
+- gridExtra
+- grid
+- fields
+- xts 
+- hydroGOF
+- zoo
+- raster (>= 2.1.0) 
+- sp 
+- rgeos 
+- RTriangle
+- rgdal (>= 1.1.0)
+- proj4
+- abind
+- utils
+- lubridate
+- geometry
+- methods
+- ncdf4
+- GGally
+- doParallel
+
+除以上安装包以外，需要用户自行安装github上的`RTriangle`包；建议在安装完其他包之后，最后安装`RTriangle。
+```
+devtools::install_github('shulele/RTriangle/pkg') 
+```
+
+
+<!--chapter:end:02-Install.Rmd-->
+
+# 数据准备 {#inputfiles}
+本节从原始数据要求到输入文件内涵，向用户详细介绍模型输入数据。
+
+## 原始数据
+
+| 类型 | 数据名 | 必要性 | 要求(格式、步长、数量） | 说明 |
+|:------:|:------------------:|:------:|:------:|:---------------------:|
+| 空间数据 | **流域边界** | 高 | 矢量 | 连续、封闭、唯一多边形； |
+| 空间数据 | **河流网络** | 高 | 矢量 | 河流具有方向性；河流无向下分叉； |
+| 空间数据 | 高程 | 高 | 0 | 单位：米 |
+| 空间数据 | 土地利用分类 | 中 | 矢量/栅格 | $n_{lc}$个分类 |
+| 空间数据 | 土壤分类 | 中 | 矢量/栅格 | $n_s$个分类 |
+| 空间数据 | 气象站点 | 中 | 矢量/栅格 | $n_{fc}$个站点 |
+| 参数 | 土地利用 | 中 | $n_{lc}$ 组 | 土地利用的水力学参数 |
+| 参数 | 土壤 | 中 | $n_s$组 | 土壤性质：Silt百分比、Clay百分比、有机质含量、Bulk Density |
+| 时间序列数据 | **气象驱动** | 高 | 小时～日 | 降雨、气温、湿度、辐射、风速、气压 |
+| 时间序列数据 | 叶面积指数(LAI) | 中 | 小时～月 | 每类土地利用一个LAI时间序列 |
+| 时间序列数据 | 融化系数 | 低 | 小时～月 | 一个时间序列 |
+| 时间序列数据 | **观测数据** | 高 | 小时～月 | 通常为径流数据、地下水、蒸散发等 |
+
+### 数据实例
+
+
+| ![DWR](Fig/input/DWR.png) |
+|:-------|
+| *南苏丹Pongo流域原始数据实例：流域边界（绿色实线），河流（红色实线）、DEM(背景)和气象站点覆盖范围（黑色虚线）。气象数据站点为GLDAS数据，因此为$ 0.25 x 0.25 $度覆盖范围。* |
+
+
+| ![DWR](Fig/input/SLTPPT_M_sl1_250m_PCS.tif.png) | ![DWR](Fig/input/CLYPPT_M_sl1_250m_PCS.tif.png) |
+|:-------|:-------|
+| *(a) Percentage of silt* | *(b) Percentage of Clay* |
+| ![DWR](Fig/input/ORCDRC_M_sl1_250m_PCS.tif.png) | ![DWR](Fig/input/BLDFIE_M_sl1_250m_PCS.tif.png) |
+| *(c) Organic mater (Organic Carbon)* | *(d) Bulk density* |
+| *南苏丹Pongo流域土壤数据：Silt百分比，Clay百分比，有机物含量，Bulk Density。数据来源：ISRIC_SoilGrids。*  |
+
+
+| ![DWR](Fig/input/Landuse_PCS.tif.png)                     |
+| :----------------------------------------------------------- |
+| *南苏丹Pongo流域土地利用信息。土地利用数据来自USGS GLC数据。* |
+
+
+| ![DWR](Fig/input/Rawdata_FLDAS.png) |
+|:-------|
+| *FLDAS数据的覆盖范围，即气象站点位置信息。* |
+
+
+
+| ![DWR](Fig/input/Rawdata_FLDAS_TS.png) |
+| :---------------------------------------- |
+| *FLDAS的气象驱动数据。*                   |
+
+## 模型输入文件
+
+输入文件列表
+
+| File | Category | 备注 | Header | # of column |
+|:------:|:------------------:|:------:|:------:|:---------------------:|
+| .mesh | sp | 三角形单元定义  | 是 | |
+| .att | sp | 单元属性表   | 是 | |
+| .riv | sp |  河流   | 是 | |
+| .rivseg | sp | 三角形单元与河道单元拓扑信息   | 是 | |
+| .calib | cfg | 物理参数校准文件  | 是 | |
+| .para | cfg |  模型运行设置参数文件  | 是 | |
+| .ic | cfg | 模型初始条件  | 是 | |
+| .geol | para | 地下水层的水力学参数 | 是 | |
+| .soil | para | 浅层土壤的水力学参数 | 是 | |
+| .lc | para | 土地利用的水力学和能量参数 | 是 | |
+| .forc | tsd | 气象驱动数据文件的列表 | 是 | |
+| .csv | tsd | 气象驱动时间序列数据  | 是 | |
+| .lai | tsd | 叶面积指数 | 是 | |
+| .obs | tsd | 用于校准观测时间序列数据  | 是 | |
+| .mf | tsd | 融雪参数时间序列数据  | 是 | |
+| .rl | tsd | 计算潜在蒸散发的粗糙度时间序列数据  | 是 | |
+| gis/domain | 三角形单元的矢量文件 | x | x |
+| gis/river | Shapefile | 河段的矢量文件 | x | x |
+| gis/seg | Shapefile | 被三角形分割的河段矢量文件   | x | x |
+
+![The screenshot of input files for SHUD](Fig/IO/Inputfiles.png)
+
+在文件夹 *gis* 和 *fig* 中的文件与SHUD模拟无关，然后在数据分析和可视化中有很大作用，因此保留在输入文件当中。
+
+
+## 空间数据
+
+### .sp.mesh 文件
+
+![Example of .sp.mesh file (block 1)](Fig/IO/sp.mesh1.png)
+![Example of .sp.mesh file (block 2)](Fig/IO/sp.mesh2.png)
+
+*.mesh* 文件中有两个表格，第一个表格为三角形的组成和拓扑关系；第二个表格为组成三角形的节点坐标信息。
+
+* **表格 1 (三角形单元)**
+
+- 表头
+
+| 值1 | 值2 |
+|:---------:|:---------:|
+| 行数 ( $N_{cell}$) | 列数 ($8$) |
+
+- 表
+  
+| 列 | 含义 | 取值范围 | 单位 | 备注 |
+|:------:|:------------------:|:------:|:------:|:---------------------:|
+| ID | 单元序号 $i$ |  1 ~ $N_{cell}$ | - | |
+| Node1 | 三角形单元第1角点$i$ |  1 ~ $N_{node}$ | - | |
+| Node2 | 三角形单元第2角点 $i$ |  1 ~ $N_{node}$ | - | |
+| Node3 | 三角形单元第3角点 $i$ |  1 ~ $N_{node}$ | - | |
+| Nabr1 | 三角形单元第1邻居序号$i$ |  1 ~ $N_{cell}$ | - | |
+| Nabr2 | 三角形单元第2邻居序号$i$ |  1 ~ $N_{cell}$ | - | |
+| Nabr3 | 三角形单元第3邻居序号$i$ |  1 ~ $N_{cell}$ | - | |
+| Zmax | 三角形单元地表高程 | -9999 ~ +inf | $m$ | |
+
+
+* **Block 2 (node information)**
+
+- 表头:
+
+| 值1 | 值2 |
+|:---------:|:---------:|
+| 行数( $N_{node}$) | 列数 ($5$) |
+
+- Table
+  
+| 列 | 含义 | 取值范围 | 单位 | 备注 |
+|:------:|:------------------:|:------:|:------:|:---------------------:|
+| ID | 点序号 $i$ |  1 ~ $N_{cell}$ | - | |
+| X | x坐标 $i$ |  1 ~ $N_{node}$ | - | |
+| Y | y坐标 $i$ |  1 ~ $N_{node}$ | - | |
+| AqDepth | 含水层厚度(地表至不透水层距离)$i$ | 0 ~ +inf | $m$ | |
+| Elevation | 点的高程（z坐标） $i$ | -9999 ~ +inf | $m$ | |
+
+
+
+
+### .sp.att文件
+
+![Example of .sp.att file](Fig/IO/sp.att.png)
+
+
+- 表头
+
+| 值1 | 值2 |
+|:---------:|:---------:|
+| 行数( $N_{cell}$) | 列数 ($7$) |
+
+- Table
+  
+| 列 | 含义 | 取值范围 | 单位 | 备注 |
+|:------:|:------------------:|:------:|:------:|:---------------------:|
+| ID | 单元序号$i$  |  1 ~ $N_{cell}$ | - | |
+| SOIL | 土壤类型序号 |  1 ~ $N_{soil}$ | - | |
+| GEOL | 类型序号 |  1 ~ $N_{geol}$ | - | |
+| LC | 类型序号 |  1 ~ $N_{lc}$ | - | $N_{lc}$ = $N_{lai}$ |
+| FORC | 气象站点序号 |  1 ~ $N_{forc}$ | - | |
+| MF | 融雪指数序号 |  1 ~ $N_{mf}$ | - | |
+| BC | 边界条件序号  |  1 ~ $N_{bc}$ | - | |
+| SS | 源汇序号  |  1 ~ $N_{bc}$ | - | |
+
+### .sp.riv文件
+
+![Example of .sp.riv file](Fig/IO/sp.riv.png)
+
+ 
+
+
+- 表头
+
+| 值1 | 值2 |
+|:---------:|:---------:|
+| 行数( $N_{riv}$) | 列数 ($5$) |
+
+- 表
+  
+| 列 | 含义 | 取值范围 | 单位 | 备注 |
+|:------:|:------------------:|:------:|:------:|:---------------------:|
+| ID | 河段序号$i$ |  1 ~ $N_{river}$ | - | |
+| DOWN | 下游河段序号  |  1 ~ $N_{river}$ | - | Negative vlaue indicates outlet|
+| Type | 河流参数序号 |  1 ~ $N_{rivertype}$ | - | |
+| Slope | 河床底坡度  |  -10 ~ 10 | $m/m$ | Height/Length |
+| Length | 河段长度 $i$ |  0 ~ inf | $m$ | |
+
+### .sp.rivseg文件
+
+![Example of .sp.rivseg file](Fig/IO/sp.rivchn.png)
+
+- 表头
+
+| 值1 | 值2 |
+|:---------:|:---------:|
+| 行数( $N_{segment}$) | 列数 ($4$) |
+
+- Table
+  
+| 列 | 含义 | 取值范围 | 单位 | 备注 |
+|:------:|:------------------:|:------:|:------:|:---------------------:|
+| ID | 片段序号 $i$  |  1 ~ $N_{segment}$ | - | |
+| iRiv | 所属河段序号 |  1 ~ $N_{river}$ | - | |
+| iEle | 相交单元序号|  1 ~ $N_{cell}$ | - | |
+| Length | 片段长度 $i$  |  0 ~ inf | $m$ | |
+
+## 水力学参数
+
+### .para.soil
+土壤表层的水力学参数
+
+
+### .para.geol
+地下水层的水力学参数
+
+### .para.lc
+与土地利用有关的参数
+
+
+
+## 模型配置文件
+
+### .cfg.para文件
+
+![Example of .cfg.para file](Fig/IO/cfg.para.png)
+
+- Table
+  
+| 列 | 含义 | 取值范围 | 单位 | Default 值 |
+|:-------------:|:------------------:|:------:|:------:|:---------------------:|
+| VERBOSE| 输出冗余信息 | - | - | 0 |
+| INIT_MODE| 初始条件模式 | 0~3| - | 3 (0=Relief conditon, 1=Dry condition, 2=Default guess, 3=Warm start)|
+| ASCII_OUTPUT| 是否输出文本格式结果 | 1/0 | - | 0 |
+| Binary_OUTPUT| 是否输出二进制格式结果 | 1/0 | - | 1 |
+| SPINUPDAY| 模型预热天数 | 0 ~ inf | $day$ | 0 |
+| SCR_INTV| 屏幕输出间隔 | 0 ~ $N_{threads}$ | $min$ | 1440 |
+| ABSTOL| CVODE绝对容差 | 1e-6 ~ 0.1 | - | 0.0001 |
+| RELTOL| CVODE相对容差 | 1e-6 ~ 0.1 | - | 0.0001 |
+| INIT_SOLVER_STEP| 初始迭代步长 | - | $min$ | 1 |
+| MAX_SOLVER_STEP| 最大迭代步长 | 1~60 | $min$ | 10 |
+| ET_STEP| 正散发计算步长 | 1~360 | $min$ | 60 |
+| START| 模型开始时间（天数） | 0 ~ inf | $day$ | 0|
+| END| 模型结束时间（天数） | - | $day$ | - |
+| dt_ye_snow | 储量输出步长，积雪 | 0 ~ inf | $min$ | 1440 |
+| dt_ye_surf | 储量输出步长，地表水| 0 ~ inf | $min$ | 1440 |
+| dt_ye_unsat | 储量输出步长，未饱和层 | 0 ~ inf | $min$ | 1440 |
+| dt_ye_gw | 储量输出步长，地下水层 | 0 ~ inf | $min$ | 1440 |
+| dt_Qe_surf | 单元流量输出步长，地表水  | 0 ~ inf | $min$ | 1440 |
+| dt_Qe_sub | 单元流量输出步长， 地下水 | 0 ~ inf | $min$ | 1440 |
+| dt_qe_et0 | 单元流量输出步长，截流蒸发 | 0 ~ inf | $min$ | 1440 |
+| dt_qe_et1 | 单元流量输出步长，蒸腾 | 0 ~ inf | $min$ | 1440 |
+| dt_qe_et2 | 单元流量输出步长，蒸发 | 0 ~ inf | $min$ | 1440 |
+| dt_qe_etp | 单元流量输出步长，潜在蒸散发 | 0 ~ inf | $min$ | 1440 |
+| dt_qe_prcp | 单元流量输出步长，降雨 | 0 ~ inf | $min$ | 1440 |
+| dt_qe_infil | 单元流量输出步长，下渗 | 0 ~ inf | $min$ | 1440 |
+| dt_qe_rech | 单元流量输出步长，地下水补给 | 0 ~ inf | $min$ | 1440 |
+| dt_yr_stage | 河段储量输出步长，河道 | 0 ~ inf | $min$ | 1440 |
+| dt_Qr_down | 河段流量输出步长，向下游 | 0 ~ inf | $min$ | 1440 |
+| dt_Qr_surf | 河段流量输出步长，向坡面 | 0 ~ inf | $min$ | 1440 |
+| dt_Qr_sub | 河段流量输出步长，向地下水 | 0 ~ inf | $min$ | 1440 |
+| dt_Qr_up | 河段流量输出步长，向上游 | 0 ~ inf | $min$ | 1440 |
+
+
+### .cfg.calib文件
+![Example of .cfg.calib file](Fig/IO/cfg.calib.png)
+
+- Table
+  
+| 列 | 含义 | 取值范围 | 单位 | 备注 |
+|:------:|:------------------:|:------:|:------:|:---------------------:|
+| GEOL_KSATH | 水平水力传导度，地下水层 | ? | - | |
+| GEOL_KSATV | 垂直水力传导度，地下水层  | ? | - | |
+| GEOL_KMACSATH | 大孔隙水平水力传导度，地下水层 | ? | - | |
+| GEOL_DMAC | 大孔隙深度，地下水层 |  | - | |
+| GEOL_THETAS | 地下水层孔隙度，地下水层 |  | - | |
+| GEOL_THETAR | 土壤残留含水量，地下水层 |  | - | |
+| GEOL_MACVF | 大孔隙面积比，地下水层 |  | - | |
+| SOIL_KINF | 饱和水力传导度，未饱和层 | ? | - | |
+| SOIL_KMACSATV | 大孔隙垂向水力传导度，未饱和层 | ? | - | |
+| SOIL_DINF | 下渗深度参数，未饱和层 | ? | - | |
+| SOIL_ALPHA | $\alpha$值，van Genuchten公式 |  | - | |
+| SOIL_BETA | $\beta$值，van Genuchten公式 |  | - | |
+| SOIL_MACHF | 大孔隙面积比，未饱和层 |  | - | |
+| LC_VEGFRAC | 植被覆盖度 |  | - | |
+| LC_ALBEDO | 反照率 |  | - | |
+| LC_ROUGH | 地表曼宁粗糙度 |  | - | |
+| LC_SOILDGD | 土壤劣化系数 |  | - | |
+| LC_IMPAF | 不透水面积比 |  | - | |
+| LC_ISMAX | 最大截流系数 |  | - | |
+| AQ_DEPTH+ | 含水层深度 |  | $m$ | |
+| TS_PRCP | 降雨 |  | - | |
+| TS_SFCTMP+ | 温度 |  | $C$ | |
+| ET_ETP | 潜在蒸散发 |  | - | |
+| ET_IC | 冠层截流 |  | - | |
+| ET_TR | 植被蒸腾 |  | - | |
+| ET_SOIL | 直接蒸发 |  | - | |
+| RIV_ROUGH | 河道曼宁粗糙度 |  | - | |
+| RIV_KH | 河床水力传导度 |  | - | |
+| RIV_DPTH+ | 河道深度 |  | $m$ | |
+| RIV_WDTH+ | 河道宽度 |  | $m$ | |
+| RIV_SINU | 河道绵延度 |  | - | |
+| RIV_CWR | 谢才公式系数$C_{wr}$ |  | - | |
+| RIV_BSLOPE+ | 河床坡度 |  | $m/m$ | |
+| IC_GW+ | 地下水水位初始条件 |  | $m$ | |
+| IC_RIV+ | 河道水量初始条件 |  | $m$ | |
+
+
+### .cfg.ic文件
+
+![Example of .cfg.ic file](Fig/IO/cfg.ic.png)
+
+* **表1 (三角单元初始条件)**
+
+- 表头
+
+| 值1 | 值2 |
+|:---------:|:---------:|
+| 行数( $N_{cell}$) | 列数 ($6$) |
+
+- Table
+  
+| 列 | 含义 | 取值范围 | 单位 | 备注 |
+|:------:|:------------------:|:------:|:------:|:---------------------:|
+| ID | 单元序号$i$  |  1 ~ $N_{cell}$ | - | |
+| Canopy | 冠层截流 $i$  |  0 ~ inf | $m$ | |
+| Snow | 积雪 $i$  |  0 ~ inf | $m$ | |
+| Surface | 地表水 $i$  |  0 ~ inf | $m$ | |
+| Unsat | 未饱和层水 $i$  |  0 ~ inf | $m$ | |
+| GW | 地下水 $i$  |  0 ~ inf | $m$ | |
+
+* **表2 (河段初始条件)**
+
+- 表头:
+
+| 值1 | 值2 |
+|:---------:|:---------:|
+| 行数( $N_{riv}$) | 列数 ($2$) |
+
+- Table
+  
+| 列 | 含义 | 取值范围 | 单位 | 备注 |
+|:------:|:------------------:|:------:|:------:|:---------------------:|
+| ID | 河段序号 $i$  |  1 ~ $N_{riv}$ | - | |
+| Stage | 河段水位 $i$  |  0 ~ inf | $m$ | |
+
+
+
+
+## 时间序列数据
+
+### .tsd.forc文件
+
+![Example of .tsd.forc file](Fig/IO/tsd.forc.png)
+
+- Line 1: `气象站点数量 | 开始日期 (YYYYMMDD)`
+- Line 2: 驱动数据文件所在文件夹
+- Line 3~N: 时间序列数据文件名
+
+
+![Example of .csv forcing file](Fig/IO/tsd.csv.png)
+
+- 表头:
+
+| 值1 | 值2 |
+|:---------:|:---------:|
+| ( $0$) | 列数 ($6$) |
+
+- Table
+  
+| 列 | 含义 | 取值范围 | 单位 | 备注 |
+|:------:|:------------------:|:------:|:------:|:---------------------:|
+| Day | 日数 |  0 ~ $N_{day}$ | $day$ | |
+| PRCP | 降雨  |  0 ~ 1 | $mm/day$ | |
+| TEMP | 气温  |  -100 ~ 70 | $C$ | |
+| RH | 相对湿度 |  0 ~ 1 | $-$ | |
+| wind | 风速 |  0 ~ inf | $m/s$ | |
+| Rn | 太阳净辐射 |  ? | $W/m^2$ | |
+
+
+### .tsd.lai文件
+
+![Example of .tsd.lai file](Fig/IO/tsd.lai.png)
+
+- 表头:
+
+| 值1 | 值2 | 值3 |
+|:---------:|:---------:|:---------:|
+| 天数 ( $N_{time}$) | 列数 ($N_{lc}$) | 开始日期 (YYYYMMDD) |
+
+- Table
+  
+| 列 | 含义 | 取值范围 | 单位 | 备注 |
+|:------:|:------------------:|:------:|:------:|:---------------------:|
+| 第一列 | 时间 |  0 ~ $N_{time}$ | $day$ | |
+| 第2列 | 叶面积指数1  |  0 ~ inf | $m^2/m^2$ | |
+| 第i列 | 叶面积指数$i-1$  |  0 ~ inf | $m^2/m^2$ | |
+| ... | ...  |  ... | ... | |
+
+
+### .tsd.rl文件
+
+![Example of .tsd.rl file](Fig/IO/tsd.rl.png)
+
+- 表头:
+
+| 值1 | 值2 | 值3 |
+|:---------:|:---------:|:---------:|
+| 天数 ( $N_{time}$) | 列数 ($N_{lc}$) | 开始日期 (YYYYMMDD) |
+
+- Table
+  
+| 列 | 含义 | 取值范围 | 单位 | 备注 |
+|:------:|:------------------:|:------:|:------:|:---------------------:|
+| 第一列 | 时间 |  0 ~ $N_{time}$ | $day$ | |
+| 第2列 | 粗糙度1  |  0 ~ inf | $m$ | |
+| 第i列 | 粗糙度$i-1$  |  0 ~ inf | $m$ | |
+| ... | ...  |  ... | ... | |
+
+### .tsd.mf文件
+
+![Example of .tsd.mf file](Fig/IO/tsd.mf.png)
+
+- 表头:
+
+| 值1 | 值2 | 值3 |
+|:---------:|:---------:|:---------:|
+| 天数 ( $N_{time}$) | 列数 ($N_{mf}$) | 开始日期 (YYYYMMDD) |
+
+- Table
+  
+| 列 | 含义 | 取值范围 | 单位 | 备注 |
+|:------:|:------------------:|:------:|:------:|:---------------------:|
+| 第一列 | 时间 |  0 ~ $N_{time}$ | $day$ | |
+| 第2列 | 融雪因子1  |  0 ~ inf | - | |
+| 第i列 | 融雪因子$i-1$  |  0 ~ inf | - | |
+| ... | ...  |  ... | ... | |
+
+### .tsd.obs文件
+
+![Example of .tsd.obs file](Fig/IO/tsd.obs.png)
+
+- 表头:
+
+| 值1 | 值2 | 值3 |
+|:---------:|:---------:|:---------:|
+| 天数 ( $N_{time}$) | 列数 ($N_{obs}$) | 开始日期 (YYYYMMDD) |
+
+- Table
+  
+| 列 | 含义 | 取值范围 | 单位 | 备注 |
+|:------:|:------------------:|:------:|:------:|:---------------------:|
+| 第一列 | 时间 |  0 ~ $N_{time}$ | $day$ | |
+| 第2列 | 观测1  |  ? | ? | |
+| 第i列 | 观测 $i-1$  |  ? | ? | |
+| ... | ...  |  ... | ... | |
+
+
+
+end
+
+
+
+
+<!--chapter:end:03-Inputfiles.Rmd-->
+
+
+# 输出文件 {#outputfiles}
+
+
+
+## 文件名格式
+
+为了方便结果的分类和用户理解，作者规则化定义了输出文件的文件名；用户通过文件名即可读懂文件所包含的变量类型、所属单元和读写格式。输出文件的文件名格式：
+
+**[项目名].[识别码].[格式]**
+
+或者：
+
+**[Project Name].[Identifier].[format]**
+
+- *[项目名]*（*[Project Name]*） 是用户给模拟定的名称，通常为流域的名字简写。例如：黄河流域，可以写成*hh*或者*huanghe*.
+- *[格式]* （*[format]*）可以使用*csv*或者*dat*. *csv*为规则文本格式，可使用任意文本编辑器或者WPS表格打开。*dat*二进制格式，文件占用硬盘空间较小
+
+- *[识别码]* （*[Identifier]*） 定义了输出结果内涵。识别码基本结构为
+**[模型单元][变量类型][变量名]**（**[Model cell][Variable Type][Variable Name]**）。 *[Model cell]* 是*ele* （element，模型三角单元）, *riv* （river，河段） or *lak* （lake，湖泊）. 变量类型包括 *y*, *v* and *q*，分别代表状态变量 （单位$L$）, 单位流量或速度（单位$L^3 L^{-2} T^{-1}$）和体积流量（in $L^3 T^{-1}$）——$L$为长度单位，$T$为时间单位。
+
+
+下表为SHUD输出文件列表：
+
+| 识别码 | 单元 | 类型 | 变量名 | 含义 | 单位
+|:--------:|:-----:|:---:|:------:|:-------:|:------------:|:-----:|
+| *.eleyic.* | ele | y | ic | 储量，冠层截流  | $m$  |
+| *.eleysnow.* | ele | y | snow |  储量，雪水当量 | $m$  |
+| *.eleysurf.* | ele | y | surf |  储量，地表水 | $m$  | 
+| *.eleyunsat.* | ele | y | unsat |  储量，未饱和层 | $m$  |
+| *.eleygw.* | ele | y | gw |  储量，地下水水位 | $m$  | .GW |
+| *.elevetp.* | ele | v | etp | 通量，潜在蒸散发  | $\frac{m^3}{m^2 d}$  |
+| *.eleveta.* | ele | v | eta | 通量，实际蒸散发  | $\frac{m^3}{m^2 d}$  | 
+| *.elevetic.* | ele | v | etic |  通量，冠层截流蒸发 | $\frac{m^3}{m^2 d}$  | 
+| *.elevettr.* | ele | v | ettr | 通量，植被蒸腾  | $\frac{m^3}{m^2 d}$  |
+| *.elevetev.* | ele | v | etev | 通量，直接蒸发  | $\frac{m^3}{m^2 d}$  |
+| *.elevprcp.* | ele | v | prcp | 通量，降雨  | $\frac{m^3}{m^2 d}$  |
+| *.elevnetprcp.* | ele | v | netprcp | 通量，净降雨量  | $\frac{m^3}{m^2 d}$  |
+| *.elevinfil.* | ele | v | infil |  通量，下渗 | $\frac{m^3}{m^2 d}$  |
+| *.elevexfil.* | ele | v | infil |  通量，出渗（反下渗） | $\frac{m^3}{m^2 d}$  |
+| *.elevrech.* | ele | v | rech | 通量，地下水补给  | $\frac{m^3}{m^2 d}$  |
+| *.eleqsurf.* | ele | q | surf | 流量，地表径流（坡面流）  | $m^3/d$  | 
+| *.eleqsub.* | ele | q | sub | 流量， 地下水水平流动 | $m^3/d$  | 
+| *.rivystage.* | riv | y | stage | 储量，河段水位  | $m$  |
+| *.rivqup.* | riv | q | up | 流量，向上游 | $m^3/d$  | 
+| *.rivqdown.* | riv | q | down |  流量，向下游 | $m^3/d$  | 
+| *.rivqsurf.* | riv | q | surf | 流量，向坡面  | $m^3/d$  |
+| *.rivqsub.* | riv | q | sub | 流量，向地下水  | $m^3/d$  |
+
+## 文本格式输出文件（.csv）
+N - 输出文件列数（不含时间列）
+m - 步长总数
+StartTime - 开始时间 （YYYYMMDD or YYYYMMDD.hhmmss）
+
+| N | StartTime |  |  |  |
+|:--------:|:-----:|:---:|:------:|:-------:|:------------:|
+| $T_1$ | $v_{1 \cdot 1}$ | $v_{1 \cdot 2}$ | ... | $v_{1 \cdot N}$ |
+| $T_2$ | $v_{2 \cdot 1}$ | $v_{2 \cdot 2}$ | ... | $v_{2 \cdot N}$ |
+| $T_3$ | $v_{3 \cdot 1}$ | $v_{3 \cdot 2}$ | ... | $v_{3 \cdot N}$ |
+| ... | ...| ... | ... | ... |
+| $T_{m}$ | $v_{m \cdot 1}$ | $v_{m \cdot 2}$ | ... | $v_{m \cdot N}$ |
+
+
+## 二进制输出文件（.dat）
+二进制文件输出的结果与文本格式完全一致，但是使用了不同的存储结构。二进制文件格式紧凑，读写效率高，占用较小磁盘空间，因此作为SHUD模型的默认输出方式。 二进制文件格式不仅可被各类计算机语言（C/C++, Basic, Fortran，……）快速读取，并且也能在R、python、 Matlab、 Mathmetica等交互式语言中高效读取，如果读取有障碍，请联系模型作者获取帮助。
+
+
+| 序号 | $i$ | 值 | 格式 | 长度 |
+|:-----:|:--------:|:--------:|:-----:|:---:|
+| 1 | - | $N$ | double | 8 |
+| 2 | - | StartTime | double | 8 |
+| 3 | 0 | $T_1$ | double | 8 |
+| 4 | 1 | $v_{1 \cdot 1}$ | double | 8 |
+| 5 | 2 | $v_{1 \cdot 2}$ | double | 8 |
+| ... | ... | ... | double | 8 |
+| $（N+1） * （T-1） + i +3$ | N | $v_{1 \cdot N}$  | double | 8 |
+| $（N+1） * （T-1） + i +3$ | 0 | $T_2$ | double | 8 |
+| $（N+1） * （T-1） + i +3$ | 1 | $v_{2 \cdot 1}$ | double | 8 |
+| $（N+1） * （T-1） + i +3$ | 2 | $v_{2 \cdot 2}$ | double | 8 |
+| $（N+1） * （T-1） + i +3$ | ... | ... | double | 8 |
+| $（N+1） * （T-1） + i +3$ | N | $v_{2 \cdot N}$  | double | 8 |
+| $（N+1） * （T-1） + i +3$ | 0 | $T_3$ | double | 8 |
+| $（N+1） * （T-1） + i +3$ | 1 | $v_{3 \cdot 1}$ | double | 8 |
+| $（N+1） * （T-1） + i +3$ | 2 | $v_{3 \cdot 2}$ | double | 8 |
+| $（N+1） * （T-1） + i +3$ | ... | ... | double | 8 |
+| $（N+1） * （T-1） + i +3$ | N | $v_{3 \cdot N}$  | double | 8 |
+| $（N+1） * （T-1） + i +3$ | ... | ... | double | 8 |
+| $（N+1） * （T-1） + i +3$ | ... | ... | double | 8 |
+| $（N+1） * （T-1） + i +3$ | ... | ... | double | 8 |
+| $（N+1） * （T-1） + i +3$ | ... | ... | double | 8 |
+| $（N+1） * （m-1） + i +3$ | 0 | $T_{m}$ | double | 8 |
+| $（N+1） * （m-1） + i +3$ | 1 | $v_{m \cdot 1}$ | double | 8 |
+| $（N+1） * （m-1） + i +3$ | 2 | $v_{m \cdot 2}$ | double | 8 |
+| $（N+1） * （m-1） + i +3$ | ... | ... | double | 8 |
+| $（N+1） * （m-1） + i +3$ | N | $v_{m \cdot N}$  | double | 8 |
+
+*注：double为计算机的双精度数据格式，默认长度为8个比特位*
+
+<!--chapter:end:04_Outputfiles.Rmd-->
+
+
+
+# 应用案例 {#application}
+
+SHUD作为通用的流域水文模型，可以快速部署与全球大部分流域，能为全球水文及相关研究提供快速可靠的模拟和预测，也可作为防灾减灾、农业估产、生态环境模拟等等方面提供可靠水文背景。 本章节通过全球6个流域展示SHUD模拟系统，向用户展示水文基础数据获取、模型构建、水文模拟、自动化校准、数据分析等研究流程。用户可通过实例了解模型的可靠性、可用性和效率，从初学者进阶为SHUD系统的开发者和合作者。
+
+
+**构建SHUD模型的建议**
+1. 检查数据格式和一致性，例如：空间数据投影是否和重叠区，气象数据的单位是否符合要求？时间序列数据值是否为时间平均值？模型运行是否有异常值提示？
+1. 使用“离线”模式运行（只运行模型的读取和写出，不实际计算），可以检查模型的输入输出是否正确。
+1. 从“理想化”的驱动数据入手，（.cfg.para文件中FORC_debug=1）——启动简单驱动数据驱动模型，跳过可能的驱动数据错误。
+1. 运行较短模拟时间，然后读取结果，并检验结果是否符合预期。
+1. 如果以上过程都无误，即可带入全部数据运行模型。
+
+<!--chapter:end:05-application.Rmd-->
+
+
+## V形流域 
+本案例源码和数据获取地址：
+<!-- [![DOI](https://zenodo.org/badge/226266189.svg)](https://zenodo.org/badge/latestdoi/226266189) or  -->
+[Github: https://github.com/Model-Intercomparison-Datasets/V-Catchment](https://github.com/Model-Intercomparison-Datasets/V-Catchment)
+
+V形流域（V-Catchment， VC）是一个可验证数值水文模型的理想化模型；此流域不仅有效测试了模型的地表径流、汇流、河川径流和水量平衡，也可验证数值方法的质量守恒，甚至模型的网格划分的无关性（Independancy）和收敛性（Convergence）。
+
+VC模拟空间有两个倾斜的坡面和链接坡面的倾斜河道组成。
+
+![Description of the V-Catchmenet](Fig/Example/vCat/Vcat.png)
+
+两个坡面是$800 \times 1000 m$，并且曼宁系数$n=0.015$的斜面.  居于坡面之间的河道宽度$20 m$宽，$1000 m$长，曼宁系数为$n=0.15$. 从坡面顶到河道的坡度为0.05（沿$x$轴方向），同时，从河道起点到重点的坡度为0.02，（沿$y$轴方向）。坡面与河流都是完全不透水表面，即无下渗，无植被。
+
+整个VC接收连续、均一降水，降雨强度$18 mm/hr$并持续90分钟，累计降雨量为$27mm$。理想假设无下渗和无蒸发，因此坡面的水量将完全流入河道，并从河道出口出离开此流域。因此模拟结果要满足坡面流出水量等于总降雨量，以及河道出流量等于总降雨量和坡面总流量，即质量守恒定律。
+
+$\sum P \cdot A = \sum Q_{slope} = \sum Q_{river}$
+
+
+### Shen等(2010) 中的结果
+
+文献中有多个模型研究重复了VC实验，其中Shen等(2010)输出了坡面向河道的流量，因此我们选用Shen等（2010）的结果进行对比。
+
+![Shen (2010) results](Fig/Example/vCat/Shen2010.png)
+
+经过分析我们发现Shen等(2010)的坡面流量存疑。解释如下：基于质量守恒和连续性定律，总输入（降雨）必须等于总的输出（坡面净流量或者河道出流量），而Shen等(2010)的结果中坡面流量仅为河道流量和降雨的20分之一。这现象可能是作者绘图过程中的失误导致；因此我们的实验中数字化了Shen等(2010)的结果，但是将坡面流量放大到20倍——即满足质量守恒的量级，然后对比实验。
+
+![SHUD triangular model domain in V-Catchment](Fig/Example/vCat/vc_mesh.png)
+
+使用SHUD对VC进行模拟，结果如下图。坡面径流和河道出流量都满足质量守恒定律和连续性定理，也能很好验证对于Shen等(2010)结果的推测。
+
+![Comparizon of SHUD modeling results versus Shen (2010).](Fig/Example/vCat/vcat_vs_vs.png)
+
+
+
+
+<!--chapter:end:051_Vcatch.Rmd-->
+
+## Vauclin水槽箱试验
+
+本案例数据和源码获取地址：
+<!-- [![DOI](https://zenodo.org/badge/226266864.svg)](https://zenodo.org/badge/latestdoi/226266864) or -->
+[Github: https://github.com/Model-Intercomparison-Datasets/Vauclin1979](https://github.com/Model-Intercomparison-Datasets/Vauclin1979).
+
+
+Vauclin试验[@Vauclin1979] is designed to assess groundwater table change and soil moisture in the unsaturated layer under precipitation or irrigation.  The experiment was conducted in a sandbox with dimension $3$ m long $\times 2$ m deep $\times 0.05$ m wide (see Fig. \ref{fig:vauclin}). The box was filled with uniform sand particles with measured hydraulic parameters: the saturated hydraulic conductivity was $35$ cm/hr and porosity was $0.33$ m$^3$/m$^3$. The left and bottom of the sandbox were impervious layers, and the top and the right side were open. A hydraulic head was set constant at $0.65 m$. Constant irrigation ($1.48$ cm/hr) was applied over the first $50$ cm of the top-left of the sandbox while the rest of the top was covered to avoid water loss via evaporation.
+
+![Experiment set-up in Vauclin (1979)](Fig/Example/Vauclin/Vauclin.png)
+
+![Groundwater measurement and 2-D numeric simulation in Vauclin (1979)](Fig/Example/Vauclin/v1.png)
+
+The experiment's initial condition is an equilibrium water table under constant hydraulic head from the right side.  That is, the saturated water table across the sandbox was kept stable at $0.65$ m. When the groundwater table reached equilibrium, irrigation was initiated at $t = 0$.  The groundwater table was then measured at 2, 4, 6, and 8 hours at several locations along the length of the box.
+
+![Simulation results from SHUD model versus Vauclin (1979) measurement ](Fig/Example/Vauclin/best.png)
+
+\citep{Vauclin1979} also use 2-D (vertical and horizontal) numeric model to simulate the soil moisture and groundwater table. The maximum bias between measurement and simulation was $5.2 cm $, according to the value of digitalized in \citealp[Fig. 10]{Vauclin1979}. 
+
+
+Besides the parameters specified in \citep{Vauclin1979}, additional information is needed by the SHUD, including the $\alpha$ and $\beta$ in the van Genutchen equation and  water content ($\theta _s$). Therefore,  we use a calibration tool to estimate the representative values of these parameters.  The use of calibration in this simulation is reasonable because the model -- inevitably -- simplifies the real hydraulic processes. The calibration thus nudges the parameters to \emph{representative} values that approach or fit the \emph{true} natural processes.  The calibrated values are  $\theta _s = 0.32 m^3/m^3$, $\alpha = 6.0$ and $\beta = 6.0$.  Like the simulated results in \citep{Vauclin1979} and \citep{Shen2010}, a mismatch exists between the simulations and measurements.
+
+This mismatch may be due to (1) the aquifer description of unsaturated and saturated layers limiting the capability to simulate infiltration and recharge in the unsaturated zone, or (2) the horizontal unsaturated flow assumptions no longer hold at the relatively  microscopic scales of this experiment.
+
+The SHUD simulated the groundwater table at all four measurement points (see Fig. \ref{fig:vauclin}(b).  The maximum bias between simulation and Vauclin's observations is $ 5.5cm$, with $R^2$ = $0.99$, that is comparable to the bias $5.2 cm$ of numerical simulation in \citep{Vauclin1979}. When the calibration takes more soil parameters into account, the bias in simulation decreases to  $3 cm$. Certainly, the simplifications employed by SHUD for the unsaturated and saturated zone benefits the computation efficiency while limiting the applicability of the model for micro-scale problems.
+
+The simulations, compared against Vauclin's experiment, validate the algorithm for infiltration, recharge, and lateral groundwater flow.  More reliable vertical flow within unsaturated layer requires multiple layers, which is planned in next version of SHUD.
+
+
+
+<!--chapter:end:052_Vauclin.Rmd-->
+
+## 美国加州Cache河流域
+
+本案例的源码获取地址：
+<!-- [![DOI](https://zenodo.org/badge/226413148.svg)](https://zenodo.org/badge/latestdoi/226413148) and -->
+[Github: https://github.com/Model-Intercomparison-Datasets/Cache-Creek](https://github.com/Model-Intercomparison-Datasets/Cache-Creek). 数据非常大，如果需要原始数据，请联系作者 [Lele Shu](mailto:shulele@lzb.ac.cn)
+
+
+### Cache Creek Watershed
+
+CCW是北萨克拉门托河上游的一个支流，面积196.4平方公里（下图），海拔高程450米至1800米，平均坡度38% $ L/L $（陡峭地形是对数值方法水文模型的挑战）。
+
+
+![Location and data for Cache Creek Watershed](Fig/Example/CacheCreek/sac5_map.png)
+
+根据2000-2017年间，NLDAS-2数据，流域内平均气温12.8度，年降雨量817毫米，然而降雨年内、年际分布不均，属于典型地中海气候——降雨集中在冬天、夏天温度高且 干旱无雨。
+
+![Precipitation and temperature](Fig/Example/CacheCreek/sac5_PT.png)
+
+### SHUD simulation and calibration
+
+Our simulation in CCW covers the period from 2000 to 2007. Because of the Mediterranean climate in this region, the simulation starts in summer to ensure adequate time before the October start to the water year. In our experiment, the first year (2000-06-01 to 2001-06-30) is the spin-up period, the following two years (2001-07-01 to 2003-06-30 ) are the calibration period, and the period from 2003-07-01 to 2007-07-01 is for validation.
+
+The unstructured domain of the CCW (Fig. \ref{fig:sh} (d)) is built with rSHUD, a R package on GitHub ([rSHUD]( https://github.com/shud-system/rSHUD)). The number of triangular cells is 1147, with a mean area of $ 0.17 km^2$. The total length of the river network is $126.5 km$ and consists of 103 river reaches and in which the highest order of stream is 4. With a calibrated parameter set, the SHUD model tooks 5 hours to simulate 17 years in the CCW, with a non-parallel configuration (OpenMP is disabled on *Mac Pro 2013 Xeon 2.7GHz, 32GB RAM*).
+
+### Results
+
+Figure \ref{fig:sh_calib} reveals the comparison of simulated discharge against the observed discharge at the gage station of [USGS 11451100](https://waterdata.usgs.gov/ca/nwis/uv/?site_no=11451100).
+The calibration procedure exploits the Covariance Matrix Adaptation -- Evolution Strategy (CMA-ES) to calibrate automatically \citep{Hansen2016}. The calibration program assigns 72 children in each generation and keeps the best child as the seed for next-generation, with limited perturbations. The perturbation for the next generation is generated from the covariance matrix of the previous generation. After 23 generations, the calibration tool identifies a locally optimal parameter set.
+
+![The hydrograph in calibration and validation period](Fig/Example/CacheCreek/sac5_hydrograph_daily.png)
+
+We use the groundwater distribution (Fig. \ref{fig:sh_gw}) to demonstrate the spatial distribution of hydroligcal metrics calculated from the SHUD model.
+
+Figure \ref{fig:sh_gw} illustrates the annual mean groundwater table in the validation period. Because the model fixes a $30 m$ aquifer, the results represent the groundwater within this aquifer only.
+ The groundwater table and elevation along the green line on the upper map are extracted and plotted in the bottom figure. The gray ribbon is the $30 m$ aquifer, and the blue line is the location where groundwater storage is larger than zero. The green polygons with the right axis are the groundwater storage along the cross-section.  The groundwater follows the terrain, with groundwater accumulated in the valley, or along relatively flat plains. In the CCW, the groundwater is very deep or does not stay on the steep slope.
+
+
+![Groundwater spatial distribution map](Fig/Example/CacheCreek/sac5_rgw.png)
+
+![The groundwater condition along the cross-section line](Fig/Example/CacheCreek/sac5_sgw.png)
+
+![Water balance in the simulation period](Fig/Example/CacheCreek/sac5_wb.png)
+
+
+<!--chapter:end:053_CacheCreek.Rmd-->
+
+## 宁夏岩画村山洪
+
+
+
+
+
+![岩画上的太阳神(Source: wiki)](Fig/Example/Yanhuacun/sun.jpg)
+
+
+
+
+![宁夏岩画村山洪模拟使用的三角形网格)](Fig/Example/Yanhuacun/map.png)
+
+<!--chapter:end:054_Yanhuacun.Rmd-->
+
+##  休斯顿城市内涝
+
+
+2017年休斯顿飓风后的休斯顿城市
+
+<!--chapter:end:055_Houston.Rmd-->
+
+## 南苏丹尼罗河上游
+
+<!--chapter:end:056_SouthSudan.Rmd-->
+
+
+# 模型校准  {#calibration}
+
+*本章节正式施工中～～～*
+
+| File | Comments | Header | # of column |
+|:------:|:------------------:|:------:|:---------------------:|
+| .cfg.cmaes | Configuration of CMA-ES method | No | - |
+
+Values in .calib.cmaes file:
+
+| Item | Meaning | Default value | Range  | Unit |
+|:------:|:--------------------------:|:---------:|:---------:|:--------:|
+| lambda | Number of children in each generation | 48 |  | - |
+| stopfitness | Threshold to accept the *best* solution | 0.3 |   | - |
+| maxgen | Maximun generations |  48 |   | - |
+| sigma |  | 0.8  |   | - |
+| updateic | Whether to update initial condition after each generation  | 0 | 0/1  | - |
+| walltime | Walltime to kill the modeling thread  |  86400 | 0-inf  | second |
+| nspingup | Number of days for spinup  | 0 | 0-inf  | day |
+|  |  |  |   | - |
+
+
+Values in .calib.range file:
+
+Rows: Values in .cfg.calib file.
+Column:
+| Item | Meaning | Default value | Range  | Unit |
+|:------:|:--------------------------:|:---------:|:---------:|:--------:|
+| On/off | On or Off | 0 | 0/1  | - |
+| log | Whether logrithm | 0 |  0/1  | - |
+| min | Minimun value |  - |  - | - |
+| max | Maximun value |  - |  - | - |
+
+
+
+<!--chapter:end:06-Calibration.Rmd-->
+
+---
+output:
+  pdf_document: default
+  html_document: default
+---
+
+# 快速、可重复和自动化水文模拟  {#autoshud}
+
+*本章节正式施工中～～～*
+
+## SHUD模拟的基本步骤。
+
+
+### 地形关键变量
+
+- Atmospheric forcing (precipitation, snow cover, wind, relative humidity, temperature, net radiation, albedo, photosynthetic atmospheric radiation, leaf area index)
+- Digital elevation model (DEM)
+- River/stream discharge
+- Soil (class, hydrologic properties)
+- Groundwater (levels, extent, hydro-geologic properties)
+- Lake/Reservoir (levels, extent)
+- Land cover and land use (biomass, human infrastructure, demography, ecosystem disturbance)
+- Water use
+
+Most data reside on federal servers ....many petabytes.
+
+### A-Priori Data Sources
+
+|Feature/Time-Series | Property | Source|
+|:------:|:------------:|:------------------------------:|
+|Soil| Porosity; Sand, Silt, Clay Fractions; Bulk Density | CONUS, SSURGO and STATSGO|
+|Geology| Bed Rock Depth; Horizontal and Vertical Hydraulic Conductivity | http://www.dcnr.state.pa.us/topogeo/, http://www.lias.psu.edu/emsl/guides/X.html|
+|Land Cover|LAI |[UMC](http://glcf.umiacs.umd.edu/data/landcover/data.shtml), [LDASmapveg](http://ldas.gsfc.nasa.gov/LDAS8th/MAPPED.VEG/LDASmapveg.shtml); |
+|Land Cover|Manning’s Roughness; | Hernandez et. al., 2000 |
+|River| Manning’s Roughness;| Dingman (2002) |
+|River| Coefficient of Discharge | ModHms Manual (Panday and Huyakorn, 2004) |
+|River| Shape and Dimensions; | Derived from regression using depth, width, and discharge data from [USGS data](http://nwis.waterdata.usgs.gov/usa/nwis/measurements)|
+|River| Topology: Nodes, Neighboring cells; | Derived using PIHMgis (Bhatt et. al., 2008)|
+|Forcing| Prec, Temp. RH, Wind, Rad. | National Land Data Assimilation System: NLDAS-2|
+|Topography| DEM |http://seamless.usgs.gov/ |
+|Streamflow| | http://nwis.waterdata.usgs.gov/nwis/sw |
+|Groundwater| | http://nwis.waterdata.usgs.gov/nwis/gw |
+## Workflow of SHUD Modeling System
+
+1. Prepare raw Essential Terrestrial Variables (ETV)
+2. Convert and crop raw data with the research area boundary.
+1. Build the unstructued modeling domain with [SHUDboolbox](https://github.com/SHUD-System/SHUD) 
+1. Run SHUD on desktop or cluster.
+1. Analysis the SHUD model results with [SHUDboolbox](https://github.com/SHUD-System/SHUDboolbox) or your hydrologic analysis tools.
+
+
+![The workflow of modeling with SHUD Modeling System](./Fig/autoSHUD.png)
+
+<!--chapter:end:07-autoSHUD.Rmd-->
+
+
+# 源码和程序设计 {#sourcecode}
+
+The source code of SHUD and SHUD-tool are avaliable via Github: https://github.com/SHUD-System/SHUD and https://github.com/SHUD-System/rSHUD.
+
+
+
+<!--chapter:end:10-SouceCode.Rmd-->
+
